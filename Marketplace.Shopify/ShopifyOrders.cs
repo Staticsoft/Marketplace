@@ -37,16 +37,25 @@ public class ShopifyOrders(
         return ToOrder(createdOrder);
     }
 
-    public async Task Delete(string orderId)
+    public async Task<Abstractions.Order> Get(string orderId)
     {
-        if (long.TryParse(orderId, out var shopifyOrderId))
-        {
-            await Orders.DeleteAsync(shopifyOrderId);
-        }
-        else
+        if (!long.TryParse(orderId, out var shopifyOrderId))
         {
             throw new ArgumentException($"Invalid order ID format: {orderId}", nameof(orderId));
         }
+
+        var shopifyOrder = await Orders.GetAsync(shopifyOrderId);
+        return ToOrder(shopifyOrder);
+    }
+
+    public async Task Delete(string orderId)
+    {
+        if (!long.TryParse(orderId, out var shopifyOrderId))
+        {
+            throw new ArgumentException($"Invalid order ID format: {orderId}", nameof(orderId));
+        }
+
+        await Orders.DeleteAsync(shopifyOrderId);
     }
 
     static Abstractions.Order ToOrder(ShopifySharp.Order shopifyOrder) => new()
