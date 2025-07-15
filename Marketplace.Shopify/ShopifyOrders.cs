@@ -19,6 +19,24 @@ public class ShopifyOrders(
             .AsReadOnly();
     }
 
+    public async Task<Abstractions.Order> Get(string orderId)
+    {
+        if (!long.TryParse(orderId, out var shopifyOrderId))
+        {
+            throw new ArgumentException($"Invalid order ID format: {orderId}", nameof(orderId));
+        }
+
+        try
+        {
+            var shopifyOrder = await Orders.GetAsync(shopifyOrderId);
+            return ToOrder(shopifyOrder);
+        }
+        catch (ShopifyException ex) when (ex.Message.Contains("Not Found") || ex.Message.Contains("404"))
+        {
+            throw new Orders.NotFoundException(orderId);
+        }
+    }
+
     public async Task<Abstractions.Order> Create(NewOrder newOrder)
     {
         var shopifyOrder = new ShopifySharp.Order
@@ -37,17 +55,6 @@ public class ShopifyOrders(
         return ToOrder(createdOrder);
     }
 
-    public async Task<Abstractions.Order> Get(string orderId)
-    {
-        if (!long.TryParse(orderId, out var shopifyOrderId))
-        {
-            throw new ArgumentException($"Invalid order ID format: {orderId}", nameof(orderId));
-        }
-
-        var shopifyOrder = await Orders.GetAsync(shopifyOrderId);
-        return ToOrder(shopifyOrder);
-    }
-
     public async Task Delete(string orderId)
     {
         if (!long.TryParse(orderId, out var shopifyOrderId))
@@ -55,7 +62,14 @@ public class ShopifyOrders(
             throw new ArgumentException($"Invalid order ID format: {orderId}", nameof(orderId));
         }
 
-        await Orders.DeleteAsync(shopifyOrderId);
+        try
+        {
+            await Orders.DeleteAsync(shopifyOrderId);
+        }
+        catch (ShopifyException ex) when (ex.Message.Contains("Not Found") || ex.Message.Contains("404"))
+        {
+            throw new Orders.NotFoundException(orderId);
+        }
     }
 
     static Abstractions.Order ToOrder(ShopifySharp.Order shopifyOrder) => new()
