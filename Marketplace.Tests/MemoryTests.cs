@@ -6,6 +6,5 @@ namespace Staticsoft.Marketplace.Tests;
 public class MemoryOrdersTests : OrdersTests
 {
     protected override IServiceCollection Services
-        => base.Services
-            .UseMemoryShop();
+        => base.Services.UseMemoryShop();
 }
