@@ -25,6 +25,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Using Include="Xunit"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\Marketplace.Abstractions\Marketplace.Abstractions.csproj" />
         <ProjectReference Include="..\Marketplace.Memory\Marketplace.Memory.csproj" />
     </ItemGroup>

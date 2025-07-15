@@ -1,6 +1,6 @@
 ﻿namespace Staticsoft.Marketplace.Abstractions;
 
-public class Store(
+public class Shop(
     Orders orders
 )
 {
