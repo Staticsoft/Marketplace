@@ -37,6 +37,18 @@ public class ShopifyOrders(
         return ToOrder(createdOrder);
     }
 
+    public async Task Delete(string orderId)
+    {
+        if (long.TryParse(orderId, out var shopifyOrderId))
+        {
+            await Orders.DeleteAsync(shopifyOrderId);
+        }
+        else
+        {
+            throw new ArgumentException($"Invalid order ID format: {orderId}", nameof(orderId));
+        }
+    }
+
     static Abstractions.Order ToOrder(ShopifySharp.Order shopifyOrder) => new()
     {
         Id = shopifyOrder.Id?.ToString() ?? string.Empty,
