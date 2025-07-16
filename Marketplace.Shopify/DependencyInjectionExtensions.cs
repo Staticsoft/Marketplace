@@ -14,5 +14,6 @@ public static class DependencyInjectionExtensions
         => services
             .AddSingleton<Abstractions.Shop>()
             .AddShopifySharp<LeakyBucketExecutionPolicy>()
-            .AddScoped<Orders, ShopifyOrders>();
+            .AddScoped<Orders, ShopifyOrders>()
+            .AddScoped(options);
 }

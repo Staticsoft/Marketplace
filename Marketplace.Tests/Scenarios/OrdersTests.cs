@@ -3,8 +3,23 @@ using Staticsoft.Testing;
 
 namespace Staticsoft.Marketplace.Tests;
 
-public abstract class OrdersTests : TestBase<Orders>
+public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
 {
+    const string TestOrderPrefix = "AutomatedTestOrder";
+
+    public async Task InitializeAsync()
+    {
+        var orders = await SUT.List();
+        var testOrders = orders.Where(order => order.Number.StartsWith(TestOrderPrefix));
+        foreach (var order in testOrders)
+        {
+            await SUT.Delete(order.Id);
+        }
+    }
+
+    public Task DisposeAsync()
+        => Task.CompletedTask;
+
     [Fact]
     public async Task ThrowsNotFoundExceptionWhenGettingNonExistingOrder()
     {
@@ -15,8 +30,9 @@ public abstract class OrdersTests : TestBase<Orders>
     public async Task ReturnsEmptyListOfOrders()
     {
         var orders = await SUT.List();
+        var testOrders = orders.Where(order => order.Number.StartsWith(TestOrderPrefix));
 
-        Assert.Empty(orders);
+        Assert.Empty(testOrders);
     }
 
     [Fact]
@@ -24,7 +40,7 @@ public abstract class OrdersTests : TestBase<Orders>
     {
         var newOrder = new NewOrder
         {
-            Number = "ORD-001",
+            Number = $"{TestOrderPrefix}-001",
             Status = OrderStatus.Pending,
             TotalPrice = 100.00m,
             SubtotalPrice = 90.00m,
@@ -35,9 +51,9 @@ public abstract class OrdersTests : TestBase<Orders>
 
         await SUT.Create(newOrder);
         var orders = await SUT.List();
+        var testOrders = orders.Where(order => order.Number.StartsWith(TestOrderPrefix));
 
-        Assert.Single(orders);
-        var order = orders.First();
+        var order = Assert.Single(testOrders);
         Assert.Equal(newOrder.Number, order.Number);
         Assert.Equal(newOrder.Status, order.Status);
         Assert.Equal(newOrder.TotalPrice, order.TotalPrice);
@@ -52,7 +68,7 @@ public abstract class OrdersTests : TestBase<Orders>
     {
         var newOrder = new NewOrder
         {
-            Number = "ORD-002",
+            Number = $"{TestOrderPrefix}-002",
             Status = OrderStatus.Confirmed,
             TotalPrice = 250.00m,
             SubtotalPrice = 225.00m,
@@ -85,7 +101,7 @@ public abstract class OrdersTests : TestBase<Orders>
     {
         var newOrder = new NewOrder
         {
-            Number = "ORD-003",
+            Number = $"{TestOrderPrefix}-003",
             Status = OrderStatus.Processing,
             TotalPrice = 75.00m,
             SubtotalPrice = 70.00m,
@@ -98,7 +114,8 @@ public abstract class OrdersTests : TestBase<Orders>
 
         await SUT.Delete(createdOrder.Id);
 
-        var ordersAfterDelete = await SUT.List();
-        Assert.Empty(ordersAfterDelete);
+        var orders = await SUT.List();
+        var testOrders = orders.Where(order => order.Number.StartsWith(TestOrderPrefix));
+        Assert.Empty(testOrders);
     }
 }
