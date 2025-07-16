@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net8.0</TargetFramework>
@@ -25,12 +25,13 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Using Include="Xunit"/>
+        <Using Include="Xunit" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Marketplace.Abstractions\Marketplace.Abstractions.csproj" />
         <ProjectReference Include="..\Marketplace.Memory\Marketplace.Memory.csproj" />
+        <ProjectReference Include="..\Marketplace.Shopify\Marketplace.Shopify.csproj" />
     </ItemGroup>
 
 </Project>

@@ -13,5 +13,13 @@ static class ShopifyTestsExtensions
 {
     public static IServiceCollection UseShopifyServices(this IServiceCollection services)
         => services
-            .UseShopify();
+            .UseShopify(_ => new()
+            {
+                AccessToken = Configuration("ShopifyAccessToken"),
+                ShopDomain = Configuration("ShopifyShopDomain")
+            });
+
+    static string Configuration(string name)
+        => Environment.GetEnvironmentVariable(name)
+        ?? throw new ArgumentException($"Environment variable '{name}' is not set");
 }

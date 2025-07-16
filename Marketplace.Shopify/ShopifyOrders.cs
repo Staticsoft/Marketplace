@@ -1,13 +1,21 @@
 using ShopifySharp;
+using ShopifySharp.Factories;
 using Staticsoft.Marketplace.Abstractions;
 
 namespace Staticsoft.Marketplace.Shopify;
 
 public class ShopifyOrders(
-    OrderService orders
+    IOrderServiceFactory factory,
+    ShopifyOrders.Options options
 ) : Orders
 {
-    readonly OrderService Orders = orders;
+    public class Options
+    {
+        public required string ShopDomain { get; init; }
+        public required string AccessToken { get; init; }
+    }
+
+    readonly IOrderService Orders = factory.Create(new(options.ShopDomain, options.AccessToken));
 
     public async Task<IReadOnlyCollection<Abstractions.Order>> List()
     {
