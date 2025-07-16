@@ -7,6 +7,7 @@ public class MemoryOrders : Orders
 {
     readonly ConcurrentDictionary<string, Order> orders = new();
     long nextId = 1;
+    long nextOrderId = 1001;
 
     public Task<IReadOnlyCollection<Order>> List()
     {
@@ -26,20 +27,29 @@ public class MemoryOrders : Orders
 
     public Task<Order> Create(NewOrder newOrder)
     {
-        var orderId = Interlocked.Increment(ref nextId).ToString();
+        var orderId = $"{Interlocked.Increment(ref nextId)}";
         var now = DateTime.UtcNow;
 
         var order = new Order
         {
             Id = orderId,
+            Number = $"{Interlocked.Increment(ref nextOrderId)}",
             CreatedAt = now,
             UpdatedAt = now,
             Status = newOrder.Status,
-            TotalPrice = newOrder.TotalPrice,
-            SubtotalPrice = newOrder.SubtotalPrice,
+            TotalPrice = newOrder.Items.Sum(item => item.Price * item.Quantity) + newOrder.TaxAmount,
+            SubtotalPrice = newOrder.Items.Sum(item => item.Price * item.Quantity),
             TaxAmount = newOrder.TaxAmount,
             Currency = newOrder.Currency,
-            CustomerEmail = newOrder.CustomerEmail
+            CustomerEmail = newOrder.CustomerEmail,
+            Items = newOrder.Items
+                .Select(item => new Order.Item
+                {
+                    Title = item.Title,
+                    Quantity = item.Quantity,
+                    Price = item.Price
+                })
+                .ToArray()
         };
 
         orders.TryAdd(orderId, order);

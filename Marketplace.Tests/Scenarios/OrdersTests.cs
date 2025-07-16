@@ -39,27 +39,25 @@ public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
         var newOrder = new NewOrder
         {
             Status = OrderStatus.Pending,
-            TotalPrice = 15.00m,
-            SubtotalPrice = 10.00m,
             TaxAmount = 5.00m,
             Currency = "USD",
             CustomerEmail = TestOrderEmail,
             Items = [new() { Title = "Test item", Quantity = 1, Price = 10 }]
         };
+        var newItem = newOrder.Items.Single();
 
         await SUT.Create(newOrder);
         var orders = await SUT.List();
 
         var order = Assert.Single(orders);
         Assert.Equal(newOrder.Status, order.Status);
-        Assert.Equal(newOrder.TotalPrice, order.TotalPrice);
-        Assert.Equal(newOrder.SubtotalPrice, order.SubtotalPrice);
+        Assert.Equal(newItem.Price + newOrder.TaxAmount, order.TotalPrice);
+        Assert.Equal(newItem.Price, order.SubtotalPrice);
         Assert.Equal(newOrder.TaxAmount, order.TaxAmount);
         Assert.Equal(newOrder.Currency, order.Currency);
         Assert.Equal(newOrder.CustomerEmail, order.CustomerEmail);
 
         var item = Assert.Single(order.Items);
-        var newItem = newOrder.Items.Single();
         Assert.Equal(newItem.Title, item.Title);
         Assert.Equal(newItem.Quantity, item.Quantity);
         Assert.Equal(newItem.Price, item.Price);
@@ -71,8 +69,6 @@ public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
         var newOrder = new NewOrder
         {
             Status = OrderStatus.Confirmed,
-            TotalPrice = 15.00m,
-            SubtotalPrice = 10.00m,
             TaxAmount = 5.00m,
             Currency = "USD",
             CustomerEmail = TestOrderEmail,
@@ -83,6 +79,7 @@ public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
         var retrievedOrder = await SUT.Get(createdOrder.Id);
 
         Assert.Equal(createdOrder.Id, retrievedOrder.Id);
+        Assert.NotEmpty(createdOrder.Number);
         Assert.Equal(createdOrder.Number, retrievedOrder.Number);
         Assert.Equal(createdOrder.Status, retrievedOrder.Status);
         Assert.Equal(createdOrder.TotalPrice, retrievedOrder.TotalPrice);
@@ -110,8 +107,6 @@ public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
         var newOrder = new NewOrder
         {
             Status = OrderStatus.Processing,
-            TotalPrice = 15.00m,
-            SubtotalPrice = 10.00m,
             TaxAmount = 5.00m,
             Currency = "USD",
             CustomerEmail = TestOrderEmail,

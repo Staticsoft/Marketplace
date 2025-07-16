@@ -50,8 +50,6 @@ public class ShopifyOrders(
         var shopifyOrder = new ShopifySharp.Order
         {
             Email = newOrder.CustomerEmail,
-            TotalPrice = newOrder.TotalPrice,
-            SubtotalPrice = newOrder.SubtotalPrice,
             TotalTax = newOrder.TaxAmount,
             Currency = newOrder.Currency,
             FinancialStatus = MapToShopifyFinancialStatus(newOrder.Status),
