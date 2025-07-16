@@ -5,13 +5,12 @@ namespace Staticsoft.Marketplace.Tests;
 
 public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
 {
-    const string TestOrderPrefix = "AutomatedTestOrder";
+    public const string TestOrderEmail = "automated@testing.com";
 
     public async Task InitializeAsync()
     {
         var orders = await SUT.List();
-        var testOrders = orders.Where(order => order.Number.StartsWith(TestOrderPrefix));
-        foreach (var order in testOrders)
+        foreach (var order in orders)
         {
             await SUT.Delete(order.Id);
         }
@@ -23,16 +22,15 @@ public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
     [Fact]
     public async Task ThrowsNotFoundExceptionWhenGettingNonExistingOrder()
     {
-        await Assert.ThrowsAsync<Orders.NotFoundException>(() => SUT.Get("-1"));
+        await Assert.ThrowsAsync<Orders.NotFoundException>(() => SUT.Get("0"));
     }
 
     [Fact]
     public async Task ReturnsEmptyListOfOrders()
     {
         var orders = await SUT.List();
-        var testOrders = orders.Where(order => order.Number.StartsWith(TestOrderPrefix));
 
-        Assert.Empty(testOrders);
+        Assert.Empty(orders);
     }
 
     [Fact]
@@ -40,27 +38,31 @@ public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
     {
         var newOrder = new NewOrder
         {
-            Number = $"{TestOrderPrefix}-001",
             Status = OrderStatus.Pending,
-            TotalPrice = 100.00m,
-            SubtotalPrice = 90.00m,
-            TaxAmount = 10.00m,
+            TotalPrice = 15.00m,
+            SubtotalPrice = 10.00m,
+            TaxAmount = 5.00m,
             Currency = "USD",
-            CustomerEmail = "customer@example.com"
+            CustomerEmail = TestOrderEmail,
+            Items = [new() { Title = "Test item", Quantity = 1, Price = 10 }]
         };
 
         await SUT.Create(newOrder);
         var orders = await SUT.List();
-        var testOrders = orders.Where(order => order.Number.StartsWith(TestOrderPrefix));
 
-        var order = Assert.Single(testOrders);
-        Assert.Equal(newOrder.Number, order.Number);
+        var order = Assert.Single(orders);
         Assert.Equal(newOrder.Status, order.Status);
         Assert.Equal(newOrder.TotalPrice, order.TotalPrice);
         Assert.Equal(newOrder.SubtotalPrice, order.SubtotalPrice);
         Assert.Equal(newOrder.TaxAmount, order.TaxAmount);
         Assert.Equal(newOrder.Currency, order.Currency);
         Assert.Equal(newOrder.CustomerEmail, order.CustomerEmail);
+
+        var item = Assert.Single(order.Items);
+        var newItem = newOrder.Items.Single();
+        Assert.Equal(newItem.Title, item.Title);
+        Assert.Equal(newItem.Quantity, item.Quantity);
+        Assert.Equal(newItem.Price, item.Price);
     }
 
     [Fact]
@@ -68,13 +70,13 @@ public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
     {
         var newOrder = new NewOrder
         {
-            Number = $"{TestOrderPrefix}-002",
             Status = OrderStatus.Confirmed,
-            TotalPrice = 250.00m,
-            SubtotalPrice = 225.00m,
-            TaxAmount = 25.00m,
+            TotalPrice = 15.00m,
+            SubtotalPrice = 10.00m,
+            TaxAmount = 5.00m,
             Currency = "USD",
-            CustomerEmail = "test@example.com"
+            CustomerEmail = TestOrderEmail,
+            Items = [new() { Title = "Test item", Quantity = 1, Price = 10 }]
         };
 
         var createdOrder = await SUT.Create(newOrder);
@@ -88,12 +90,18 @@ public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
         Assert.Equal(createdOrder.TaxAmount, retrievedOrder.TaxAmount);
         Assert.Equal(createdOrder.Currency, retrievedOrder.Currency);
         Assert.Equal(createdOrder.CustomerEmail, retrievedOrder.CustomerEmail);
+
+        var retrievedItem = Assert.Single(retrievedOrder.Items);
+        var createdItem = newOrder.Items.Single();
+        Assert.Equal(createdItem.Title, retrievedItem.Title);
+        Assert.Equal(createdItem.Quantity, retrievedItem.Quantity);
+        Assert.Equal(createdItem.Price, retrievedItem.Price);
     }
 
     [Fact]
     public async Task ThrowsNotFoundExceptionWhenDeletingNonExistingOrder()
     {
-        await Assert.ThrowsAsync<Orders.NotFoundException>(() => SUT.Delete("-1"));
+        await Assert.ThrowsAsync<Orders.NotFoundException>(() => SUT.Delete("0"));
     }
 
     [Fact]
@@ -101,13 +109,13 @@ public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
     {
         var newOrder = new NewOrder
         {
-            Number = $"{TestOrderPrefix}-003",
             Status = OrderStatus.Processing,
-            TotalPrice = 75.00m,
-            SubtotalPrice = 70.00m,
+            TotalPrice = 15.00m,
+            SubtotalPrice = 10.00m,
             TaxAmount = 5.00m,
             Currency = "USD",
-            CustomerEmail = "delete@example.com"
+            CustomerEmail = TestOrderEmail,
+            Items = [new() { Title = "Test item", Quantity = 1, Price = 10 }]
         };
 
         var createdOrder = await SUT.Create(newOrder);
@@ -115,7 +123,6 @@ public abstract class OrdersTests : TestBase<Orders>, IAsyncLifetime
         await SUT.Delete(createdOrder.Id);
 
         var orders = await SUT.List();
-        var testOrders = orders.Where(order => order.Number.StartsWith(TestOrderPrefix));
-        Assert.Empty(testOrders);
+        Assert.Empty(orders);
     }
 }

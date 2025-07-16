@@ -49,14 +49,19 @@ public class ShopifyOrders(
     {
         var shopifyOrder = new ShopifySharp.Order
         {
-            Name = newOrder.Number,
             Email = newOrder.CustomerEmail,
             TotalPrice = newOrder.TotalPrice,
             SubtotalPrice = newOrder.SubtotalPrice,
             TotalTax = newOrder.TaxAmount,
             Currency = newOrder.Currency,
             FinancialStatus = MapToShopifyFinancialStatus(newOrder.Status),
-            FulfillmentStatus = MapToShopifyFulfillmentStatus(newOrder.Status)
+            FulfillmentStatus = MapToShopifyFulfillmentStatus(newOrder.Status),
+            LineItems = newOrder.Items.Select(item => new LineItem
+            {
+                Title = item.Title,
+                Quantity = item.Quantity,
+                Price = item.Price
+            })
         };
 
         var createdOrder = await Orders.CreateAsync(shopifyOrder);
@@ -91,7 +96,15 @@ public class ShopifyOrders(
         SubtotalPrice = shopifyOrder.SubtotalPrice ?? 0m,
         TaxAmount = shopifyOrder.TotalTax ?? 0m,
         Currency = shopifyOrder.Currency ?? string.Empty,
-        CustomerEmail = shopifyOrder.Email ?? string.Empty
+        CustomerEmail = shopifyOrder.Email ?? string.Empty,
+        Items = shopifyOrder.LineItems
+            .Select(item => new Abstractions.Order.Item
+            {
+                Title = item.Title,
+                Quantity = item.Quantity ?? 0,
+                Price = item.Price ?? 0
+            })
+            .ToArray()
     };
 
     static OrderStatus MapOrderStatus(string? financialStatus, string? fulfillmentStatus)

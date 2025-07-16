@@ -32,7 +32,6 @@ public class MemoryOrders : Orders
         var order = new Order
         {
             Id = orderId,
-            Number = newOrder.Number,
             CreatedAt = now,
             UpdatedAt = now,
             Status = newOrder.Status,
