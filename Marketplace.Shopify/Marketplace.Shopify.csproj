@@ -16,7 +16,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="ShopifySharp.Extensions.DependencyInjection" Version="1.8.0" />
+      <PackageReference Include="ShopifySharp.Extensions.DependencyInjection" Version="1.8.0-b248" />
     </ItemGroup>
 
     <ItemGroup>

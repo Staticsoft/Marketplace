@@ -2,6 +2,7 @@ using ShopifySharp;
 using ShopifySharp.Factories;
 using ShopifySharp.Infrastructure.Serialization.Json;
 using Staticsoft.Marketplace.Abstractions;
+using System.Text.Json;
 
 namespace Staticsoft.Marketplace.Shopify;
 
@@ -11,6 +12,53 @@ public class ShopifyProducts(
 ) : Products
 {
     readonly IGraphService Graph = factory.Create(new(options.ShopDomain, options.AccessToken));
+
+    #region Responses
+    class ListResponse
+    {
+        public required Data data { get; init; }
+
+        public class Data
+        {
+            public required Products products { get; init; }
+            public class Products
+            {
+                public required Edge[] edges { get; init; }
+                public class Edge
+                {
+                    public required Node node { get; init; }
+                    public class Node
+                    {
+                        public required string id { get; init; }
+                        public required string title { get; init; }
+                        public required string descriptionHtml { get; init; }
+                        public required string status { get; init; }
+                        public required string createdAt { get; init; }
+                        public required string updatedAt { get; init; }
+                        public required Variant variants { get; init; }
+                        public class Variant
+                        {
+                            public required Edge[] edges { get; init; }
+                            public class Edge
+                            {
+                                public required Node node { get; init; }
+                                public class Node
+                                {
+                                    public required string id { get; init; }
+                                    public required string title { get; init; }
+                                    public required string price { get; init; }
+                                    public required int inventoryQuantity { get; init; }
+                                    public required string createdAt { get; init; }
+                                    public required string updatedAt { get; init; }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #endregion
 
     public async Task<IReadOnlyCollection<Abstractions.Product>> List()
     {
@@ -44,25 +92,14 @@ public class ShopifyProducts(
 
         var request = new GraphRequest { Query = query };
         var response = await Graph.PostAsync(request);
+        var listResponse = JsonSerializer.Deserialize<ListResponse>(response.Json.GetRawText());
+        if (listResponse == null) return [];
 
-        if (!response.Json.TryGetProperty("data", out var data) ||
-            !data.TryGetProperty("products", out var products) ||
-            !products.TryGetProperty("edges", out var edges)
-        )
-        {
-            return [];
-        }
-
-        var result = new List<Abstractions.Product>();
-        foreach (var edge in edges.AsArray())
-        {
-            if (edge.TryGetProperty("node", out var node))
-            {
-                result.Add(ToProduct(node));
-            }
-        }
-
-        return result.AsReadOnly();
+        return listResponse.data.products.edges
+            .Select(edge => edge.node)
+            .Select(ToProduct)
+            .ToArray()
+            .AsReadOnly();
     }
 
     public async Task<Abstractions.Product> Get(string productId)
@@ -104,7 +141,8 @@ public class ShopifyProducts(
                 throw new Products.NotFoundException(productId);
             }
 
-            return ToProduct(product);
+            //return ToProduct(product);
+            return null;
         }
         catch (ShopifyException ex) when (ex.Message.Contains("Not Found") || ex.Message.Contains("404"))
         {
@@ -153,8 +191,7 @@ public class ShopifyProducts(
             {
                 title = variation.Title,
                 price = variation.Price.ToString("F2"),
-                inventoryQuantity = variation.InventoryQuantity,
-                inventoryManagement = "SHOPIFY"
+                inventoryQuantity = variation.InventoryQuantity
             }).ToArray()
         };
 
@@ -192,7 +229,8 @@ public class ShopifyProducts(
             throw new InvalidOperationException("Failed to create product: No product returned");
         }
 
-        return ToProduct(createdProduct);
+        //return ToProduct(createdProduct);
+        return null;
     }
 
     public async Task Delete(string productId)
@@ -254,16 +292,32 @@ public class ShopifyProducts(
         }
     }
 
-    static Abstractions.Product ToProduct(IJsonElement shopifyProduct) => new()
+    static Abstractions.Product ToProduct(ListResponse.Data.Products.Edge.Node node) => new()
     {
-        Id = ExtractIdFromGid(GetStringValue(shopifyProduct, "id")),
-        Title = GetStringValue(shopifyProduct, "title"),
-        Description = GetStringValue(shopifyProduct, "descriptionHtml"),
-        Status = MapProductStatus(GetStringValue(shopifyProduct, "status")),
-        CreatedAt = GetDateTimeValue(shopifyProduct, "createdAt"),
-        UpdatedAt = GetDateTimeValue(shopifyProduct, "updatedAt"),
-        Variations = GetVariations(shopifyProduct)
+        Id = ExtractIdFromGid(node.id),
+        Title = node.title,
+        Description = node.descriptionHtml,
+        Status = MapProductStatus(node.status),
+        CreatedAt = GetDateTimeValue(node.createdAt),
+        UpdatedAt = GetDateTimeValue(node.updatedAt),
+        Variations = node.variants.edges
+            .Select(edge => edge.node)
+            .Select(ToVariation)
+            .ToArray()
     };
+
+    static Abstractions.Product.Variation ToVariation(
+        ListResponse.Data.Products.Edge.Node.Variant.Edge.Node node
+    )
+        => new()
+        {
+            Id = ExtractIdFromGid(node.id),
+            Title = node.title,
+            Price = decimal.Parse(node.price),
+            InventoryQuantity = node.inventoryQuantity,
+            CreatedAt = GetDateTimeValue(node.createdAt),
+            UpdatedAt = GetDateTimeValue(node.updatedAt)
+        };
 
     static string GetStringValue(IJsonElement element, string propertyName)
     {
@@ -274,51 +328,8 @@ public class ShopifyProducts(
         return string.Empty;
     }
 
-    static DateTime GetDateTimeValue(IJsonElement element, string propertyName)
-    {
-        var stringValue = GetStringValue(element, propertyName);
-        return DateTime.TryParse(stringValue, out DateTime result) ? result : DateTime.MinValue;
-    }
-
-    static Abstractions.Product.Variation[] GetVariations(IJsonElement shopifyProduct)
-    {
-        if (!shopifyProduct.TryGetProperty("variants", out var variants) ||
-            !variants.TryGetProperty("edges", out var edges))
-        {
-            return [];
-        }
-
-        var variations = new List<Abstractions.Product.Variation>();
-        foreach (var edge in edges.AsArray())
-        {
-            if (edge.TryGetProperty("node", out var node))
-            {
-                variations.Add(new Abstractions.Product.Variation
-                {
-                    Id = ExtractIdFromGid(GetStringValue(node, "id")),
-                    Title = GetStringValue(node, "title"),
-                    Price = GetDecimalValue(node, "price"),
-                    InventoryQuantity = GetIntValue(node, "inventoryQuantity"),
-                    CreatedAt = GetDateTimeValue(node, "createdAt"),
-                    UpdatedAt = GetDateTimeValue(node, "updatedAt")
-                });
-            }
-        }
-
-        return variations.ToArray();
-    }
-
-    static decimal GetDecimalValue(IJsonElement element, string propertyName)
-    {
-        var stringValue = GetStringValue(element, propertyName);
-        return decimal.TryParse(stringValue, out decimal result) ? result : 0m;
-    }
-
-    static int GetIntValue(IJsonElement element, string propertyName)
-    {
-        var stringValue = GetStringValue(element, propertyName);
-        return int.TryParse(stringValue, out int result) ? result : 0;
-    }
+    static DateTime GetDateTimeValue(string dateTime)
+        => DateTime.TryParse(dateTime, out DateTime result) ? result : DateTime.MinValue;
 
     static string ExtractIdFromGid(string gid)
     {
@@ -328,8 +339,8 @@ public class ShopifyProducts(
         return lastSlashIndex >= 0 ? gid.Substring(lastSlashIndex + 1) : gid;
     }
 
-    static ProductStatus MapProductStatus(string? status)
-        => status?.ToLower() switch
+    static ProductStatus MapProductStatus(string status)
+        => status.ToLower() switch
         {
             "active" => ProductStatus.Active,
             "archived" => ProductStatus.Archived,
@@ -348,10 +359,6 @@ public class ShopifyProducts(
 
 public static class IJsonElementExtensions
 {
-    public static IReadOnlyCollection<IJsonElement> AsArray(this IJsonElement element)
-        => Enumerable
-            .Range(0, element.GetArrayLength())
-            .Select(i => element.GetProperty($"[{i}"))
-            .ToArray()
-            .AsReadOnly();
+    public static IEnumerable<IJsonElement> AsArray(this IJsonElement element)
+        => element.EnumerateObject();
 }
