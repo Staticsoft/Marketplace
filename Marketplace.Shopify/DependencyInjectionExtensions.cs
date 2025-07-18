@@ -9,11 +9,12 @@ public static class DependencyInjectionExtensions
 {
     public static IServiceCollection UseShopify(
         this IServiceCollection services,
-        Func<IServiceProvider, ShopifyOrders.Options> options
+        Func<IServiceProvider, ShopifyOptions> options
     )
         => services
             .AddSingleton<Abstractions.Shop>()
             .AddShopifySharp<LeakyBucketExecutionPolicy>()
             .AddScoped<Orders, ShopifyOrders>()
+            .AddScoped<Products, ShopifyProducts>()
             .AddScoped(options);
 }

@@ -6,9 +6,9 @@ public class NewOrder
     public decimal TaxAmount { get; set; }
     public string Currency { get; set; } = string.Empty;
     public string CustomerEmail { get; set; } = string.Empty;
-    public NewItem[] Items { get; set; } = [];
+    public Item[] Items { get; set; } = [];
 
-    public class NewItem
+    public class Item
     {
         public string Title { get; set; } = string.Empty;
         public int Quantity { get; set; }
