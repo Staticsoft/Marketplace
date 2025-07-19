@@ -58,6 +58,28 @@ public class ShopifyProducts(
             }
         }
     }
+
+    class CreateResponse
+    {
+        public required Data data { get; init; }
+        public class Data
+        {
+            public required ProductCreate productCreate { get; init; }
+            public class ProductCreate
+            {
+                public required Product product { get; init; }
+                public class Product
+                {
+                    public required string id { get; init; }
+                    public required string title { get; init; }
+                    public required string descriptionHtml { get; init; }
+                    public required string status { get; init; }
+                    public required string createdAt { get; init; }
+                    public required string updatedAt { get; init; }
+                }
+            }
+        }
+    }
     #endregion
 
     public async Task<IReadOnlyCollection<Abstractions.Product>> List()
@@ -152,6 +174,13 @@ public class ShopifyProducts(
 
     public async Task<Abstractions.Product> Create(NewProduct newProduct)
     {
+        var product = await CreateProduct(newProduct);
+        await CreateVariants(product, newProduct.Variations);
+        //return ToProduct(createdProduct);
+    }
+
+    async Task<CreateResponse> CreateProduct(NewProduct newProduct)
+    {
         const string mutation = @"
             mutation productCreate($input: ProductInput!) {
                 productCreate(input: $input) {
@@ -162,18 +191,6 @@ public class ShopifyProducts(
                         status
                         createdAt
                         updatedAt
-                        variants(first: 250) {
-                            edges {
-                                node {
-                                    id
-                                    title
-                                    price
-                                    inventoryQuantity
-                                    createdAt
-                                    updatedAt
-                                }
-                            }
-                        }
                     }
                     userErrors {
                         field
@@ -186,51 +203,19 @@ public class ShopifyProducts(
         {
             title = newProduct.Title,
             descriptionHtml = newProduct.Description,
-            status = MapToShopifyStatus(newProduct.Status).ToUpper(),
-            variants = newProduct.Variations.Select(variation => new
-            {
-                title = variation.Title,
-                price = variation.Price.ToString("F2"),
-                inventoryQuantity = variation.InventoryQuantity
-            }).ToArray()
+            status = MapToShopifyStatus(newProduct.Status).ToUpper()
         };
 
         var variables = new Dictionary<string, object> { ["input"] = input };
         var request = new GraphRequest { Query = mutation, Variables = variables };
         var response = await Graph.PostAsync(request);
+        return JsonSerializer.Deserialize<CreateResponse>(response.Json.GetRawText())
+            ?? throw new Exception($"Expected '{nameof(CreateResponse)}, got '{response.Json.GetRawText()}");
+    }
 
-        if (!response.Json.TryGetProperty("data", out var data) ||
-            !data.TryGetProperty("productCreate", out var productCreate))
-        {
-            throw new InvalidOperationException("Failed to create product: Invalid response structure");
-        }
+    async Task CreateVariants(CreateResponse product, NewProduct.Variation[] variations)
+    {
 
-        var hasErrors = productCreate.TryGetProperty("userErrors", out var userErrors)
-            && userErrors.GetArrayLength() > 0;
-        if (hasErrors)
-        {
-            var errorMessages = new List<string>();
-            foreach (var error in userErrors.AsArray())
-            {
-                if (error.TryGetProperty("message", out var message))
-                {
-                    var messageText = message.GetRawText().Trim('"');
-                    if (!string.IsNullOrEmpty(messageText))
-                    {
-                        errorMessages.Add(messageText);
-                    }
-                }
-            }
-            throw new InvalidOperationException($"Failed to create product: {string.Join(", ", errorMessages)}");
-        }
-
-        if (!productCreate.TryGetProperty("product", out var createdProduct))
-        {
-            throw new InvalidOperationException("Failed to create product: No product returned");
-        }
-
-        //return ToProduct(createdProduct);
-        return null;
     }
 
     public async Task Delete(string productId)
