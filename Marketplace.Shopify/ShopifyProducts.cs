@@ -27,7 +27,7 @@ public class ShopifyProducts(
                 public class Edge
                 {
                     public required Node node { get; init; }
-                    public class Node
+                    public class Node : ShopifyProducts.Product
                     {
                         public required string id { get; init; }
                         public required string title { get; init; }
@@ -42,7 +42,7 @@ public class ShopifyProducts(
                             public class Edge
                             {
                                 public required Node node { get; init; }
-                                public class Node
+                                public class Node : ShopifyProducts.Variant
                                 {
                                     public required string id { get; init; }
                                     public required string title { get; init; }
@@ -68,7 +68,7 @@ public class ShopifyProducts(
             public class ProductCreate
             {
                 public required Product product { get; init; }
-                public class Product
+                public class Product : ShopifyProducts.Product
                 {
                     public required string id { get; init; }
                     public required string title { get; init; }
@@ -114,7 +114,7 @@ public class ShopifyProducts(
             public class ProductVariantsBulkCreate
             {
                 public required ProductVariant[] productVariants { get; init; }
-                public class ProductVariant
+                public class ProductVariant : Variant
                 {
                     public required string id { get; init; }
                     public required string title { get; init; }
@@ -125,6 +125,26 @@ public class ShopifyProducts(
                 }
             }
         }
+    }
+
+    interface Product
+    {
+        string id { get; }
+        string title { get; }
+        string descriptionHtml { get; }
+        string status { get; }
+        string createdAt { get; }
+        string updatedAt { get; }
+    }
+
+    interface Variant
+    {
+        string id { get; }
+        string title { get; }
+        string price { get; }
+        int inventoryQuantity { get; }
+        string createdAt { get; }
+        string updatedAt { get; }
     }
     #endregion
 
@@ -164,7 +184,7 @@ public class ShopifyProducts(
 
         return listResponse.data.products.edges
             .Select(edge => edge.node)
-            .Select(ToProduct)
+            .Select(edge => ToProduct(edge, edge.variants.edges.Select(edge => edge.node)))
             .ToArray()
             .AsReadOnly();
     }
@@ -221,10 +241,10 @@ public class ShopifyProducts(
     {
         var product = await CreateProduct(newProduct);
         var variants = await CreateVariants(product, newProduct.Variations);
-        return new()
-        {
-
-        };
+        return ToProduct(
+            product.data.productCreate.product,
+            variants.data.productVariantsBulkCreate.productVariants
+        );
     }
 
     async Task<CreateResponse> CreateProduct(NewProduct newProduct)
@@ -404,31 +424,26 @@ public class ShopifyProducts(
         }
     }
 
-    static Abstractions.Product ToProduct(ListResponse.Data.Products.Edge.Node node) => new()
+    static Abstractions.Product ToProduct(Product product, IEnumerable<Variant> variants) => new()
     {
-        Id = ExtractIdFromGid(node.id),
-        Title = node.title,
-        Description = node.descriptionHtml,
-        Status = MapProductStatus(node.status),
-        CreatedAt = GetDateTimeValue(node.createdAt),
-        UpdatedAt = GetDateTimeValue(node.updatedAt),
-        Variations = node.variants.edges
-            .Select(edge => edge.node)
-            .Select(ToVariation)
-            .ToArray()
+        Id = ExtractIdFromGid(product.id),
+        Title = product.title,
+        Description = product.descriptionHtml,
+        Status = MapProductStatus(product.status),
+        CreatedAt = GetDateTimeValue(product.createdAt),
+        UpdatedAt = GetDateTimeValue(product.updatedAt),
+        Variations = variants.Select(ToVariation).ToArray()
     };
 
-    static Abstractions.Product.Variation ToVariation(
-        ListResponse.Data.Products.Edge.Node.Variant.Edge.Node node
-    )
+    static Abstractions.Product.Variation ToVariation(Variant variant)
         => new()
         {
-            Id = ExtractIdFromGid(node.id),
-            Title = node.title,
-            Price = decimal.Parse(node.price),
-            InventoryQuantity = node.inventoryQuantity,
-            CreatedAt = GetDateTimeValue(node.createdAt),
-            UpdatedAt = GetDateTimeValue(node.updatedAt)
+            Id = ExtractIdFromGid(variant.id),
+            Title = variant.title,
+            Price = decimal.Parse(variant.price),
+            InventoryQuantity = variant.inventoryQuantity,
+            CreatedAt = GetDateTimeValue(variant.createdAt),
+            UpdatedAt = GetDateTimeValue(variant.updatedAt)
         };
 
     static string GetStringValue(IJsonElement element, string propertyName)
