@@ -10,6 +10,12 @@ public class ShopifyOrdersTests : OrdersTests
         => base.Services.UseShopifyServices();
 }
 
+public class ShopifyProductsTests : ProductsTests
+{
+    protected override IServiceCollection Services
+        => base.Services.UseShopifyServices();
+}
+
 static class ShopifyTestsExtensions
 {
     public static IServiceCollection UseShopifyServices(this IServiceCollection services)
@@ -19,7 +25,8 @@ static class ShopifyTestsExtensions
                 AccessToken = Configuration("ShopifyAccessToken"),
                 ShopDomain = Configuration("ShopifyShopDomain")
             })
-            .Decorate<Orders, TestOrders>();
+            .Decorate<Orders, TestOrders>()
+            .Decorate<Products, TestProducts>();
 
     static string Configuration(string name)
         => Environment.GetEnvironmentVariable(name)
@@ -32,8 +39,14 @@ public class TestOrders(
 {
     readonly Orders Orders = orders;
 
-    public Task<IReadOnlyCollection<Order>> List()
-        => Orders.List();
+    public async Task<IReadOnlyCollection<Order>> List()
+    {
+        var orders = await Orders.List();
+        return orders
+            .Where(order => order.CustomerEmail == OrdersTests.TestOrderEmail)
+            .ToArray()
+            .AsReadOnly();
+    }
 
     public Task<Order> Get(string orderId)
         => Orders.Get(orderId);
@@ -43,4 +56,32 @@ public class TestOrders(
 
     public Task Delete(string orderId)
         => Orders.Delete(orderId);
+}
+
+public class TestProducts(
+    Products products
+) : Products
+{
+    readonly Products Products = products;
+
+    public async Task<IReadOnlyCollection<Product>> List()
+    {
+        var products = await Products.List();
+        return products
+            .Where(product =>
+                product.Title.Contains(ProductsTests.TestProductTitle) &&
+                product.Description.Contains(ProductsTests.TestProductDescription)
+            )
+            .ToArray()
+            .AsReadOnly();
+    }
+
+    public Task<Product> Get(string productId)
+        => Products.Get(productId);
+
+    public Task<Product> Create(NewProduct newProduct)
+        => Products.Create(newProduct);
+
+    public Task Delete(string productId)
+        => Products.Delete(productId);
 }

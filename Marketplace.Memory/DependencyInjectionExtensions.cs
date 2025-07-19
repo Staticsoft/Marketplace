@@ -8,5 +8,6 @@ public static class DependencyInjectionExtensions
     public static IServiceCollection UseMemoryShop(this IServiceCollection services)
         => services
             .AddSingleton<Shop>()
-            .AddSingleton<Orders, MemoryOrders>();
+            .AddSingleton<Orders, MemoryOrders>()
+            .AddSingleton<Products, MemoryProducts>();
 }

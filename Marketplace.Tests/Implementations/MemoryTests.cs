@@ -8,3 +8,9 @@ public class MemoryOrdersTests : OrdersTests
     protected override IServiceCollection Services
         => base.Services.UseMemoryShop();
 }
+
+public class MemoryProductsTests : ProductsTests
+{
+    protected override IServiceCollection Services
+        => base.Services.UseMemoryShop();
+}

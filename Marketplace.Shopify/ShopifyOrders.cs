@@ -6,15 +6,9 @@ namespace Staticsoft.Marketplace.Shopify;
 
 public class ShopifyOrders(
     IOrderServiceFactory factory,
-    ShopifyOrders.Options options
+    ShopifyOptions options
 ) : Orders
 {
-    public class Options
-    {
-        public required string ShopDomain { get; init; }
-        public required string AccessToken { get; init; }
-    }
-
     readonly IOrderService Orders = factory.Create(new(options.ShopDomain, options.AccessToken));
 
     public async Task<IReadOnlyCollection<Abstractions.Order>> List()
