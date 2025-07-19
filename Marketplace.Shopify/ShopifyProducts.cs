@@ -127,6 +127,42 @@ public class ShopifyProducts(
         }
     }
 
+    class GetResponse
+    {
+        public required Data data { get; init; }
+        public class Data
+        {
+            public required Product product { get; init; }
+            public class Product : ShopifyProducts.Product
+            {
+                public required string id { get; init; }
+                public required string title { get; init; }
+                public required string descriptionHtml { get; init; }
+                public required string status { get; init; }
+                public required string createdAt { get; init; }
+                public required string updatedAt { get; init; }
+                public required Variants variants { get; init; }
+                public class Variants
+                {
+                    public required Edge[] edges { get; init; }
+                    public class Edge
+                    {
+                        public required Node node { get; init; }
+                        public class Node : Variant
+                        {
+                            public required string id { get; init; }
+                            public required string title { get; init; }
+                            public required string price { get; init; }
+                            public required int inventoryQuantity { get; init; }
+                            public required string createdAt { get; init; }
+                            public required string updatedAt { get; init; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     interface Product
     {
         string id { get; }
@@ -221,15 +257,12 @@ public class ShopifyProducts(
         try
         {
             var response = await Graph.PostAsync(request);
+            var getResponse = Deserialize<GetResponse>(response.Json);
 
-            if (!response.Json.TryGetProperty("data", out var data) ||
-                !data.TryGetProperty("product", out var product))
-            {
-                throw new Products.NotFoundException(productId);
-            }
-
-            //return ToProduct(product);
-            return null;
+            return ToProduct(
+                getResponse.data.product,
+                getResponse.data.product.variants.edges.Select(edge => edge.node)
+            );
         }
         catch (ShopifyException ex) when (ex.Message.Contains("Not Found") || ex.Message.Contains("404"))
         {
