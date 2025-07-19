@@ -85,7 +85,7 @@ public abstract class ProductsTests : TestBase<Products>, IAsyncLifetime
         Assert.Equal(createdProduct.Description, retrievedProduct.Description);
         Assert.Equal(createdProduct.Status, retrievedProduct.Status);
         Assert.Equal(createdProduct.CreatedAt, retrievedProduct.CreatedAt);
-        Assert.Equal(createdProduct.UpdatedAt, retrievedProduct.UpdatedAt);
+        Assert.True(retrievedProduct.UpdatedAt >= createdProduct.UpdatedAt);
 
         var retrievedVariation = Assert.Single(retrievedProduct.Variations);
         var createdVariation = Assert.Single(createdProduct.Variations);

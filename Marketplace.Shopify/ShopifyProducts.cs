@@ -132,7 +132,7 @@ public class ShopifyProducts(
         public required Data data { get; init; }
         public class Data
         {
-            public required Product product { get; init; }
+            public required Product? product { get; init; }
             public class Product : ShopifyProducts.Product
             {
                 public required string id { get; init; }
@@ -254,20 +254,18 @@ public class ShopifyProducts(
         var variables = new Dictionary<string, object> { ["id"] = $"gid://shopify/Product/{productId}" };
         var request = new GraphRequest { Query = query, Variables = variables };
 
-        try
-        {
-            var response = await Graph.PostAsync(request);
-            var getResponse = Deserialize<GetResponse>(response.Json);
+        var response = await Graph.PostAsync(request);
+        var getResponse = Deserialize<GetResponse>(response.Json);
 
-            return ToProduct(
-                getResponse.data.product,
-                getResponse.data.product.variants.edges.Select(edge => edge.node)
-            );
-        }
-        catch (ShopifyException ex) when (ex.Message.Contains("Not Found") || ex.Message.Contains("404"))
+        if (getResponse.data.product == null)
         {
             throw new Products.NotFoundException(productId);
         }
+
+        return ToProduct(
+            getResponse.data.product,
+            getResponse.data.product.variants.edges.Select(edge => edge.node)
+        );
     }
 
     public async Task<Abstractions.Product> Create(NewProduct newProduct)
@@ -417,41 +415,9 @@ public class ShopifyProducts(
 
         try
         {
-            var response = await Graph.PostAsync(request);
-
-            if (!response.Json.TryGetProperty("data", out var data) ||
-                !data.TryGetProperty("productDelete", out var productDelete))
-            {
-                throw new InvalidOperationException("Failed to delete product: Invalid response structure");
-            }
-
-            if (productDelete.TryGetProperty("userErrors", out var userErrors) && userErrors.GetArrayLength() > 0)
-            {
-                var errorMessages = new List<string>();
-                foreach (var error in userErrors.AsArray())
-                {
-                    var message = GetStringValue(error, "message");
-                    if (!string.IsNullOrEmpty(message))
-                    {
-                        errorMessages.Add(message);
-                    }
-                }
-
-                var errorMessage = string.Join(", ", errorMessages);
-                if (errorMessage.Contains("not found") || errorMessage.Contains("Not Found"))
-                {
-                    throw new Products.NotFoundException(productId);
-                }
-
-                throw new InvalidOperationException($"Failed to delete product: {errorMessage}");
-            }
-
-            if (!productDelete.TryGetProperty("deletedProductId", out var deletedProductId))
-            {
-                throw new Products.NotFoundException(productId);
-            }
+            await Graph.PostAsync(request);
         }
-        catch (ShopifyException ex) when (ex.Message.Contains("Not Found") || ex.Message.Contains("404"))
+        catch (ShopifyGraphUserErrorsException ex) when (ex.Message == "Product does not exist")
         {
             throw new Products.NotFoundException(productId);
         }
@@ -478,15 +444,6 @@ public class ShopifyProducts(
             CreatedAt = GetDateTimeValue(variant.createdAt),
             UpdatedAt = GetDateTimeValue(variant.updatedAt)
         };
-
-    static string GetStringValue(IJsonElement element, string propertyName)
-    {
-        if (element.TryGetProperty(propertyName, out var property))
-        {
-            return property.GetRawText().Trim('"');
-        }
-        return string.Empty;
-    }
 
     static DateTime GetDateTimeValue(string dateTime)
         => DateTime.TryParse(dateTime, out DateTime result) ? result : DateTime.MinValue;
@@ -519,10 +476,4 @@ public class ShopifyProducts(
     static T Deserialize<T>(IJsonElement json)
         => JsonSerializer.Deserialize<T>(json.GetRawText())
         ?? throw new Exception($"Expected '{typeof(T).Name}' got '{json.GetRawText()}'");
-}
-
-public static class IJsonElementExtensions
-{
-    public static IEnumerable<IJsonElement> AsArray(this IJsonElement element)
-        => element.EnumerateObject();
 }
