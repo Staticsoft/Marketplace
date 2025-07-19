@@ -80,6 +80,52 @@ public class ShopifyProducts(
             }
         }
     }
+
+    class LocationsResponse
+    {
+        public required Data data { get; init; }
+        public class Data
+        {
+            public required Locations locations { get; init; }
+            public class Locations
+            {
+                public required Edge[] edges { get; init; }
+                public class Edge
+                {
+                    public required Node node { get; init; }
+                    public class Node
+                    {
+                        public required string id { get; init; }
+                        public required string name { get; init; }
+                        public required bool isActive { get; init; }
+                        public required bool deactivatable { get; init; }
+                    }
+                }
+            }
+        }
+    }
+
+    class CreateVariantsResponse
+    {
+        public required Data data { get; init; }
+        public class Data
+        {
+            public required ProductVariantsBulkCreate productVariantsBulkCreate { get; init; }
+            public class ProductVariantsBulkCreate
+            {
+                public required ProductVariant[] productVariants { get; init; }
+                public class ProductVariant
+                {
+                    public required string id { get; init; }
+                    public required string title { get; init; }
+                    public required string price { get; init; }
+                    public required int inventoryQuantity { get; init; }
+                    public required string createdAt { get; init; }
+                    public required string updatedAt { get; init; }
+                }
+            }
+        }
+    }
     #endregion
 
     public async Task<IReadOnlyCollection<Abstractions.Product>> List()
@@ -114,8 +160,7 @@ public class ShopifyProducts(
 
         var request = new GraphRequest { Query = query };
         var response = await Graph.PostAsync(request);
-        var listResponse = JsonSerializer.Deserialize<ListResponse>(response.Json.GetRawText());
-        if (listResponse == null) return [];
+        var listResponse = Deserialize<ListResponse>(response.Json);
 
         return listResponse.data.products.edges
             .Select(edge => edge.node)
@@ -175,8 +220,11 @@ public class ShopifyProducts(
     public async Task<Abstractions.Product> Create(NewProduct newProduct)
     {
         var product = await CreateProduct(newProduct);
-        await CreateVariants(product, newProduct.Variations);
-        //return ToProduct(createdProduct);
+        var variants = await CreateVariants(product, newProduct.Variations);
+        return new()
+        {
+
+        };
     }
 
     async Task<CreateResponse> CreateProduct(NewProduct newProduct)
@@ -209,13 +257,92 @@ public class ShopifyProducts(
         var variables = new Dictionary<string, object> { ["input"] = input };
         var request = new GraphRequest { Query = mutation, Variables = variables };
         var response = await Graph.PostAsync(request);
-        return JsonSerializer.Deserialize<CreateResponse>(response.Json.GetRawText())
-            ?? throw new Exception($"Expected '{nameof(CreateResponse)}, got '{response.Json.GetRawText()}");
+        return Deserialize<CreateResponse>(response.Json);
     }
 
-    async Task CreateVariants(CreateResponse product, NewProduct.Variation[] variations)
+    async Task<string> GetDefaultLocationId()
     {
+        const string query = @"
+            query {
+                locations(first: 10, includeInactive: false) {
+                    edges {
+                        node {
+                            id
+                            name
+                            isActive
+                            deactivatable
+                        }
+                    }
+                }
+            }";
 
+        var request = new GraphRequest { Query = query };
+        var response = await Graph.PostAsync(request);
+        var locationsResponse = Deserialize<LocationsResponse>(response.Json);
+
+        var defaultLocation = locationsResponse.data.locations.edges
+            .FirstOrDefault(edge => !edge.node.deactivatable)
+            ?? throw new InvalidOperationException("No active locations found in the store");
+        return defaultLocation.node.id;
+    }
+
+    async Task<CreateVariantsResponse> CreateVariants(CreateResponse product, NewProduct.Variation[] variations)
+    {
+        if (variations.Length == 0)
+        {
+            return new() { data = new() { productVariantsBulkCreate = new() { productVariants = [] } } };
+        }
+
+        var defaultLocationId = await GetDefaultLocationId();
+
+        const string mutation = @"
+            mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+                productVariantsBulkCreate(productId: $productId, variants: $variants) {
+                    productVariants {
+                        id
+                        title
+                        price
+                        inventoryQuantity
+                        createdAt
+                        updatedAt
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }";
+
+        var variants = variations.Select(variation => new
+        {
+            optionValues = new[]
+            {
+                new
+                {
+                    name = variation.Title,
+                    optionName = "Title"
+                }
+            },
+            price = variation.Price,
+            inventoryQuantities = new[]
+            {
+                new
+                {
+                    availableQuantity = variation.InventoryQuantity,
+                    locationId = defaultLocationId
+                }
+            }
+        }).ToArray();
+
+        var variables = new Dictionary<string, object>
+        {
+            ["productId"] = product.data.productCreate.product.id,
+            ["variants"] = variants
+        };
+
+        var request = new GraphRequest { Query = mutation, Variables = variables };
+        var response = await Graph.PostAsync(request);
+        return Deserialize<CreateVariantsResponse>(response.Json);
     }
 
     public async Task Delete(string productId)
@@ -340,6 +467,10 @@ public class ShopifyProducts(
             ProductStatus.Draft => "draft",
             _ => "draft"
         };
+
+    static T Deserialize<T>(IJsonElement json)
+        => JsonSerializer.Deserialize<T>(json.GetRawText())
+        ?? throw new Exception($"Expected '{typeof(T).Name}' got '{json.GetRawText()}'");
 }
 
 public static class IJsonElementExtensions
